@@ -1,5 +1,5 @@
 [package]
-name = "geojson_ascii_viewer"
+name = "climps"
 version = "0.1.0"
 edition = "2021"
 
