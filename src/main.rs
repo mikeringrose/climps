@@ -1,27 +1,10 @@
-use std::fs::File;
-use std::io::BufReader;
+use climps::map::Map;
 use geojson::GeoJson;
+use climps::projection::{Projection, Mercator};
+use climps::reader::read_geojson;
 
 const WIDTH: usize = 140;
 const HEIGHT: usize = 50;
-
-
-// Define the bounds of your coordinate system
-// const MIN_X: f64 = -23.770313590783616; // Minimum longitude
-// const MAX_X: f64 = 73.76449336498158;  // Maximum longitude
-// const MIN_Y: f64 = -36.210619428235965;  // Minimum latitude
-// const MAX_Y: f64 = 37.45391665555519;   // Maximum latitude
-
-const MIN_X: f64 = -125.0; // Minimum longitude
-const MAX_X: f64 = -66.93457;  // Maximum longitude
-const MIN_Y: f64 = 24.396308;  // Minimum latitude
-const MAX_Y: f64 = 49.384358;   // Maximum latitude
-
-fn read_geojson(file_path: &str) -> GeoJson {
-    let file = File::open(file_path).expect("Unable to open file");
-    let reader = BufReader::new(file);
-    GeoJson::from_reader(reader).expect("Error parsing GeoJSON")
-}
 
 fn map_to_screen_coords(x: f64, y: f64) -> Option<(usize, usize)> {
     if x < MIN_X || x > MAX_X || y < MIN_Y || y > MAX_Y {
@@ -113,7 +96,11 @@ fn print_map(map: &Vec<Vec<char>>) {
 }
 
 fn main() {
-    let file_path = "/Users/mikeringrose/Projects/geojson_ascii_viewer/data/us.geojson";
+    let map = Map::default();
+    let mix_xy = map.proj.project((-125.0, 24.396308));
+    let max_xy = map.proj.project((-66.93457, 49.384358));
+
+    let file_path = "/workspaces/climps/data/us.geojson";
     let geojson = read_geojson(file_path);
 
     let mut map = vec![vec!['.'; WIDTH]; HEIGHT];
