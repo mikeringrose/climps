@@ -1,4 +1,4 @@
-use crate::projection::{LngLat, Mercator, Projection};
+use crate::{projection::{Mercator, Projection}, BoundingBox, LngLat};
 
 // This would ensure the lifetimes of Map and Projection are tied
 // pub struct Map<'a> {
@@ -25,5 +25,20 @@ impl Default for Map {
 impl Map {
     pub fn new(proj: Box<dyn Projection>, center: LngLat, zoom: f64) -> Self {
         Map { proj, center, zoom }
+    }
+
+    pub fn calculate_viewport(&self) -> BoundingBox {
+        let (ul, lr) = self.proj.get_map_bounds();
+        let (world_max_lon, world_max_lat) = lr;
+        let (world_min_lon, world_min_lat) = ul;
+        let lat_range = (world_max_lat - world_min_lat) / 2_f64.powf(self.zoom);
+        let lon_range = (world_max_lon - world_min_lon) / 2_f64.powf(self.zoom);
+    
+        let min_lat = (self.center.1 - lat_range / 2.0).max(world_min_lat);
+        let max_lat = (self.center.1 + lat_range / 2.0).min(world_max_lat);
+        let min_lon = (self.center.0 - lon_range / 2.0).max(world_min_lon);
+        let max_lon = (self.center.0 + lon_range / 2.0).min(world_max_lon);
+    
+        ((min_lon, min_lat), (max_lon, max_lat))
     }
 }
