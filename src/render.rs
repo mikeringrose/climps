@@ -1,3 +1,6 @@
+use std::io;
+use crossterm::{ExecutableCommand, QueueableCommand};
+use crossterm::terminal::{Clear, ClearType};
 use geojson::GeoJson;
 use crate::map::Map;
 
@@ -112,6 +115,9 @@ impl AsciiRenderer {
 
 impl Renderer for AsciiRenderer {
     fn render(self: &Self, map: &Map, geojson: &GeoJson) {
+        let mut stdout = io::stdout();
+        stdout.queue(Clear(ClearType::All)).unwrap();
+
         let mut buffer = vec![vec!['.'; self.width]; self.height];
 
         self.render_ascii(map, geojson, &mut buffer);
