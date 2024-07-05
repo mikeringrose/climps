@@ -1,11 +1,19 @@
 use std::io;
-use crossterm::{ExecutableCommand, QueueableCommand};
-use crossterm::terminal::{Clear, ClearType};
+use std::io::Write;
+use std::thread;
+use std::time::Duration;
+
+use crossterm::cursor::MoveTo;
 use geojson::GeoJson;
+use crossterm::{event, terminal};
+use crossterm::event::{Event, KeyCode};
+use crossterm::terminal::{Clear, ClearType};
+use crossterm::{ExecutableCommand, QueueableCommand};
+
 use crate::map::Map;
 
 pub trait Renderer {
-    fn render(self: &Self, map: &Map, geojson: &GeoJson);
+    fn render(self: &Self, map: &mut Map, geojson: &GeoJson);
 }
 
 pub struct AsciiRenderer {
@@ -58,7 +66,7 @@ impl AsciiRenderer {
         }
     }
 
-    fn render_ascii(self: &Self, map: &Map, geojson: &GeoJson, buffer: &mut Vec<Vec<char>>) {
+    fn render_to_buffer(self: &Self, map: &Map, geojson: &GeoJson, buffer: &mut Vec<Vec<char>>) {
         if let GeoJson::FeatureCollection(collection) = geojson {
             for feature in &collection.features {
                 if let Some(geometry) = &feature.geometry {
@@ -114,19 +122,79 @@ impl AsciiRenderer {
 }
 
 impl Renderer for AsciiRenderer {
-    fn render(self: &Self, map: &Map, geojson: &GeoJson) {
+    fn render(self: &Self, map: &mut Map, geojson: &GeoJson) {
         let mut stdout = io::stdout();
+
+        // enable raw mode to capture input
+        terminal::enable_raw_mode().expect("Could not turn on Raw mode");
+
+        // clear the screen
         stdout.queue(Clear(ClearType::All)).unwrap();
 
+        // render the map
         let mut buffer = vec![vec!['.'; self.width]; self.height];
+        self.render_to_buffer(map, geojson, &mut buffer);
 
-        self.render_ascii(map, geojson, &mut buffer);
-
-        for row in buffer {
-            for cell in row {
-                print!("{}", cell);
+        for (x, row) in buffer.iter().enumerate() {
+            for (y, s) in row.iter().enumerate() {
+                stdout.queue(MoveTo(y as u16, x as u16)).unwrap();
+                println!("{}", *s);
             }
-            println!();
+        }
+
+        stdout.flush().unwrap();
+
+        // watch for user input
+        'mainloop: loop {
+            if event::poll(Duration::from_millis(500)).expect("Error") {
+                if let Event::Key(key_event) = event::read().expect("Failed to read line") {
+                    let rerender = match key_event.code {
+                        KeyCode::Right => {
+                            map.center = (map.center.0 + 0.5, map.center.1);
+                            true
+                        }
+                        KeyCode::Left => {
+                            map.center = (map.center.0 - 0.5, map.center.1);
+                            true
+                        }
+                        KeyCode::Up => {
+                            map.center = (map.center.0, map.center.1 + 0.5);
+                            true
+                        }
+                        KeyCode::Down => {
+                            map.center = (map.center.0, map.center.1 - 0.5);
+                            true
+                        }
+                        KeyCode::Char('z') => {
+                            map.zoom += 1.0;
+                            true
+                        }
+                        KeyCode::Esc | KeyCode::Char('q') => {
+                            terminal::disable_raw_mode().expect("Unable to disable raw mode");
+                            break 'mainloop;
+                        }
+                        _ => {
+                            false
+                        }
+                    };
+
+                    if rerender {
+                        let mut buffer = vec![vec!['.'; self.width]; self.height];
+                        self.render_to_buffer(map, geojson, &mut buffer);
+                
+                        for (x, row) in buffer.iter().enumerate() {
+                            for (y, s) in row.iter().enumerate() {
+                                stdout.queue(MoveTo(y as u16, x as u16)).unwrap();
+                                println!("{}", *s);
+                            }
+                        }
+                
+                        stdout.flush().unwrap();
+                    }
+                }
+            }
+    
+            thread::sleep(Duration::from_millis(1));
         }
     }
 }
