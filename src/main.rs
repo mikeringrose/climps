@@ -3,8 +3,12 @@ use climps::projection::Mercator;
 use climps::reader::read_geojson;
 use climps::render::{AsciiRenderer, Renderer};
 
-const WIDTH: usize = 200;
-const HEIGHT: usize = 60;
+pub mod vector_tile {
+    include!(concat!(env!("OUT_DIR"), "/vector_tile.rs"));
+}
+
+const WIDTH: usize = 150;
+const HEIGHT: usize = 50;
 
 fn main() {
     let mut map = Map::new(Box::new(Mercator), (0.0, 0.0), 0.0);

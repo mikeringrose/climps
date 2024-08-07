@@ -8,7 +8,7 @@ use geojson::GeoJson;
 use crossterm::{event, terminal};
 use crossterm::event::{Event, KeyCode};
 use crossterm::terminal::{Clear, ClearType};
-use crossterm::{ExecutableCommand, QueueableCommand};
+use crossterm::QueueableCommand;
 
 use crate::map::Map;
 
@@ -24,13 +24,21 @@ pub struct AsciiRenderer {
 impl AsciiRenderer {
     fn map_to_screen_coords(self: &Self, map: &Map, x: f64, y: f64) -> Option<(usize, usize)> {
         let (min_xy, max_xy) = map.calculate_viewport();
-
-        if x < min_xy.0 || x > max_xy.0 || y < min_xy.1 || y > max_xy.1 {
+    
+        let (proj_x, proj_y) = map.proj.project((x, y));
+    
+        if proj_x < min_xy.0 || proj_x > max_xy.0 || proj_y < min_xy.1 || proj_y > max_xy.1 {
             return None;
         }
     
-        let screen_x = ((x - min_xy.0) / (max_xy.0 - min_xy.0) * self.width as f64) as usize;
-        let screen_y = self.height - 1 - ((y - min_xy.1) / (max_xy.1 - min_xy.1) * self.height as f64) as usize;
+        let resolution_x = (max_xy.0 - min_xy.0) / self.width as f64;
+        let resolution_y = (max_xy.1 - min_xy.1) / self.height as f64;
+
+        let center_x = (min_xy.0 + max_xy.0) / 2.0;
+        let center_y = (min_xy.1 + max_xy.1) / 2.0;
+    
+        let screen_x = ((proj_x - center_x) / resolution_x + self.width as f64 / 2.0) as usize;
+        let screen_y = (self.height as f64 / 2.0 - (proj_y - center_y) / resolution_y) as usize;
     
         if screen_x < self.width && screen_y < self.height {
             Some((screen_x, screen_y))
@@ -165,8 +173,12 @@ impl Renderer for AsciiRenderer {
                             map.center = (map.center.0, map.center.1 - 0.5);
                             true
                         }
-                        KeyCode::Char('z') => {
-                            map.zoom += 1.0;
+                        KeyCode::Char('+') => {
+                            map.zoom += 0.5;
+                            true
+                        }
+                        KeyCode::Char('-') => {
+                            map.zoom -= 0.5;
                             true
                         }
                         KeyCode::Esc | KeyCode::Char('q') => {
